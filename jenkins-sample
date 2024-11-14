@@ -1,0 +1,55 @@
+pipeline {
+    agent any
+    tools {
+        maven 'MAVEN3'
+
+    }
+    stages {
+        stage('Fetch Code'){
+            steps {
+                git branch: 'main', url: 'https://github.com/jaiswaladi246/Petclinic.git'
+            }
+        }
+        stage('Build') {
+            steps {
+                sh 'mvn install -DskipTests'
+            }
+            post{
+                success {
+                    echo "Now Archiving"
+                    archiveArtifacts artifacts: '**/*.war'
+                }
+            }
+        }
+        stage('UNIT TEST') {
+            steps {
+                sh 'mvn test' 
+            }
+        }
+        stage('Checkstyle Analysis') {
+            steps {
+                sh 'mvn checkstyle:checkstyle' 
+            }
+        }
+        stage('Sonar Analysis') {
+            environment {
+                scannerHome = tool 'sonar'
+            }
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh ''' mvn sonar:sonar -Dsonar.url=http://172.17.0.1:9000/ -Dsonar.login=squ_aee23590efda7db799fad7f3014399fa0848e706 \
+                -Dsonar.projectName=Petclinic \
+                -Dsonar.java.binaries=. \
+                -Dsonar.projectKey=Petclinic'''
+                }
+            }
+        }
+        stage("Quality Gate") {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+    }
+}
